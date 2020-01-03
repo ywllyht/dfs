@@ -2,6 +2,9 @@ package mapreduce
 
 import (
 	"hash/fnv"
+	"os"
+	"bufio"
+	"io/ioutil"
 )
 
 func doMap(
@@ -53,6 +56,33 @@ func doMap(
 	//
 	// Your code here (Part I).
 	//
+	buf, err := ioutil.ReadFile(inFile)
+	if err != nil {
+		return 
+	}
+	kvs := mapF(inFile, string(buf[:]))
+	
+	wFileMap := make(map[string]*bufio.Writer)
+	for i := 0; i < len(kvs); i++ {
+		R := ihash(kvs[i].Key) % nReduce
+		outputName := reduceName(jobName, mapTask, R)
+		wFile, ok := wFileMap[outputName]
+		if ok == false {
+			oFile, oerr := os.OpenFile(outputName, os.O_WRONLY|os.O_CREATE, 0666)
+			if oerr != nil {
+				return
+			}
+			defer oFile.Close()
+			wFileMap[outputName] = bufio.NewWriter(oFile)
+			wFile = wFileMap[outputName]
+		}
+		wFile.WriteString(kvs[i].Key + "\n")
+		wFile.WriteString(kvs[i].Value + "\n")
+	}
+
+	for _, i := range wFileMap {
+		i.Flush()
+	}
 }
 
 func ihash(s string) int {

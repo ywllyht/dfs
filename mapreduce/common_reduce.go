@@ -1,5 +1,14 @@
 package mapreduce
 
+import (
+	"bufio"
+	"encoding/json"
+	"io"
+	"os"
+	"sort"
+)
+
+
 func doReduce(
 	jobName string, // the name of the whole MapReduce job
 	reduceTask int, // which reduce task this is
@@ -44,4 +53,49 @@ func doReduce(
 	//
 	// Your code here (Part I).
 	//
+	key_values := make(map[string][]string)
+	var keys []string
+	for i := 0; i < nMap; i++ {
+		sourceFile := reduceName(jobName, i, reduceTask)
+		inputFile, err := os.Open(sourceFile)
+		if err != nil {
+			return
+		}
+		defer inputFile.Close()
+
+		reader := bufio.NewReader(inputFile)
+		for {
+			inputKey, readerError := reader.ReadString('\n')
+			inputValue, readerError := reader.ReadString('\n')
+			if readerError == io.EOF {
+				break
+			}
+			inputKey = inputKey[:len(inputKey)-1]
+			inputValue = inputValue[:len(inputValue)-1]
+			_, ok := key_values[inputKey]
+			if ok == false {
+				//			key_values[inputKey] = append(key_values[inputKey], inputValue)
+				keys = append(keys, inputKey)
+			}
+			key_values[inputKey] = append(key_values[inputKey], inputValue)
+		}
+	}
+
+	sort.Strings(keys)
+
+	oFile, oerr := os.OpenFile(outFile, os.O_WRONLY|os.O_CREATE, 0666)
+	//oDebug, oerr := os.OpenFile(outFile + "-debug", os.O_WRONLY|os.O_CREATE, 0666)
+	if oerr != nil {
+		return
+	}
+	defer oFile.Close()
+	//defer oDebug.Close()
+	enc := json.NewEncoder(oFile)
+	//encDebug := json.NewEncoder(oDebug)
+	//encDebug.Encode(key_values)
+
+	for _, key := range keys {
+		enc.Encode(KeyValue{key, reduceF(key, key_values[key])})
+	}
+	
 }
